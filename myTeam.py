@@ -28,6 +28,7 @@ from contest.game import Directions, Actions
 from contest.util import nearestPoint
 
 NUM_TRAINING = 0
+TRAINING = False
 
 #################
 # Team creation #
@@ -347,7 +348,6 @@ class OffensiveReflexAgent(OffensiveQLearning):
                 '#-of-ghosts-1-step-away': -100.0,
                 'eats-food': 11.0}
     
-    # Not used
     def getReward(self, game_state, nextState):
         
         reward = 0
@@ -398,13 +398,6 @@ class DefensiveReflexAgent(OffensiveQLearning):
         self.my_foods = self.get_food(game_state).as_list()
         self.op_foods = self.get_food_you_are_defending(game_state).as_list()
 
-    def get_successor(self, game_state, action):
-        successor = game_state.generate_successor(self.index, action)
-        pos = successor.get_agent_state(self.index).get_position()
-        if pos != nearestPoint(pos):
-            return successor.generate_successor(self.index, action)
-        else:
-            return successor
 
     def getFeatures(self, game_state, action):
         features = util.Counter()
@@ -449,11 +442,9 @@ class DefensiveReflexAgent(OffensiveQLearning):
             'protect_food': 500,  # Weight for protecting own food
             'danger_zone': -500   # Weight for avoiding opponent's food
         }
-
-    def evaluate(self, game_state, action):
-        features = self.getFeatures(game_state, action)
-        weights = self.get_weights(game_state, action)
-        return features * weights
+        
+    def getReward(self, game_state, nextState):
+        return 0
 
     
 
