@@ -1,18 +1,18 @@
 # Team Information
 
-**Course:** _[fill your course code and name]_
+**Course:** _[Intel·ligència Artificial 2023-2024-T1]_
 
-**Semester:** Semester 2, 2020
+**Semester:** Trimester 1, 2023
 
-**Instructor:** _[name of your instructor]_
+**Instructor:** _[Sergio Calo Oliveira]_
 
-**Team name:** _[replace this with team name in plan text]_
+**Team name:** _[Pacman-coders]_
 
 **Team members:**
 
-* Student 1's Student number - Full Name - Student email - Student Github id
-* Student 2's Student number - Full Name - Student email - Student Github id
-* Student 3's Student number - Full Name - Student email - Student Github id
+* Student 1's 254537 - Pau Ametller López - pau.ametller01@estudiant.upf.edu - 115103720
+* Student 2's 253640 - Adrià Coll Ortega - adria.coll01@estudiant.upf.edu - 98151100
+
 
 Replace the lines above with the correct details of members. Delete or add lines as needed.
 
