@@ -199,6 +199,7 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
 
 
 NUM_TRAINING = 0
+TRAINING = False
 
 #################
 # Team creation #
@@ -245,80 +246,99 @@ class OffensiveQLearning(CaptureAgent):
 						'successorScore': -0.03, 
 						'eats-food': 9.97}'''
 
-    def register_initial_state(self, state):
+    def register_initial_state(self, game_state):
         """
         Initialize Q-learning parameters.
         """
         self.num_training = NUM_TRAINING
         self.episodes_so_far = 0
-        self.weights = self.get_weights(state, None)
-        self.start = state.get_agent_position(self.index)
-        CaptureAgent.register_initial_state(self, state)
+        self.weights = self.get_weights(game_state, None)
+        self.start = game_state.get_agent_position(self.index)
+        CaptureAgent.register_initial_state(self, game_state)
 
-    def get_q_value(self, state, action):
-        features = self.getFeatures(state, action)
+    def get_q_value(self, game_state, action):
+        features = self.getFeatures(game_state, action)
         return features * self.weights
 
-    def compute_value_from_q_values(self, state):
-        legal_actions = state.get_legal_actions(self.index)
+    def compute_value_from_q_values(self, game_state):
+        legal_actions = game_state.get_legal_actions(self.index)
         if legal_actions:
-            q_values = [self.get_q_value(state, action) for action in legal_actions]
+            q_values = [self.get_q_value(game_state, action) for action in legal_actions]
             max_q_value = max(q_values)
             return max_q_value
         else:
             return 0.0
 
-    def compute_action_from_q_values(self, state):
-        legal_actions = state.get_legal_actions(self.index)
+    def compute_action_from_q_values(self, game_state):
+        legal_actions = game_state.get_legal_actions(self.index)
         best_value = -float("inf")
         legal_actions.remove(Directions.STOP)
         best_action = None
         if legal_actions:
             for action in legal_actions:
                 #self.updateWeights(state, action)
-                q_value = self.get_q_value(state, action)
+                q_value = self.get_q_value(game_state, action)
                 if q_value > best_value:
                     best_value = q_value
                     best_action = action
         return best_action
 
-    def get_action(self, state):
+    def choose_action(self, game_state):
         # Pick Action
-        legalActions = state.get_legal_actions(self.index)
+        legalActions = game_state.get_legal_actions(self.index)
+        
+        food_left = len(self.get_food(game_state).as_list())
+
+        if food_left <= 2:
+            best_dist = 9999
+            best_action = None
+            for action in legalActions:
+                successor = self.get_successor(game_state, action)
+                pos2 = successor.get_agent_position(self.index)
+                dist = self.get_maze_distance(self.start, pos2)
+                if dist < best_dist:
+                    best_action = action
+                    best_dist = dist
+            return best_action
+        
+        if TRAINING:
+            for action in legalActions:
+                self.updateWeights(game_state, action)
+        
         if len(legalActions) == 0:
             return None
         else:
             if not util.flipCoin(self.epsilon):
             # exploit
-                action = self.get_policy(state)
+                action = self.get_policy(game_state)
             else:
             # explore
                 action = random.choice(legalActions)
             return action 
 
-    def get_policy(self, state):
-        return self.compute_action_from_q_values(state)
+    def get_policy(self, game_state):
+        return self.compute_action_from_q_values(game_state)
 
-    def get_value(self, state):
-        return self.compute_value_from_q_values(state)
+    def get_value(self, game_state):
+        return self.compute_value_from_q_values(game_state)
         
           
-    def evaluate(self, state, action, nextState, reward):
+    def evaluate(self, game_state, action, nextState, reward):
         disc = self.discount
         learning_rate = self.alpha
-        features = self.getFeatures(state, action) #Still needs to be done
-        qvalue = self.getQValue(state, action)
-        next_qvalue = self.getValue(nextState)
+        features = self.getFeatures(game_state, action) #Still needs to be done
+        qvalue = self.get_q_value(game_state, action)
+        next_qvalue = self.get_value(nextState)
         difference = (reward + disc * next_qvalue) - qvalue
         
         for feature in features:
             newWeight = learning_rate * difference * features[feature]
             self.weights[feature] += newWeight
             
-    def updateWeights(self, state, action):
-        nextState = self.get_successor(state, action)
-        reward = self.getReward(state, nextState)  #Still needs to be done
-        self.evaluate(state, action, nextState, reward)
+    def updateWeights(self, game_state, action):
+        nextState = self.get_successor(game_state, action)
+        reward = self.getReward(game_state, nextState)  #Still needs to be done
+        self.evaluate(game_state, action, nextState, reward)
 
     def get_successor(self, game_state, action):
         """
@@ -331,6 +351,50 @@ class OffensiveQLearning(CaptureAgent):
             return successor.generate_successor(self.index, action)
         else:
             return successor
+        
+    def closest_food(self, pos, food, walls):  #We use breadthFirstSearch to find the distance to the closest food
+        matrix = util.Queue()
+        matrix.push(([pos[0], pos[1]], 0))
+        neigh = []
+        while matrix:
+
+            pos, dist = matrix.pop()
+            
+            if pos in neigh:
+                continue
+            
+            neigh.append(pos)
+
+            if pos in food:
+                return dist
+
+            nbrs = Actions.get_legal_neighbors(pos, walls)
+                
+            for n in nbrs:
+                matrix.push((n, dist+1))
+        return None
+    
+    def closest_ghost(self, pos, ghost, walls):  #We use breadthFirstSearch to find the distance to the closest food
+        matrix = util.Queue()
+        matrix.push(([pos[0], pos[1]], 0))
+        neigh = []
+        while matrix:
+
+            pos, dist = matrix.pop()
+            
+            if pos in neigh:
+                continue
+            
+            neigh.append(pos)
+
+            if pos in ghost:
+                return dist
+
+            nbrs = Actions.get_legal_neighbors(pos, walls)
+                
+            for n in nbrs:
+                matrix.push((n, dist+1))
+        return None
     
 class OffensiveReflexAgent(OffensiveQLearning):
     """
@@ -340,54 +404,81 @@ class OffensiveReflexAgent(OffensiveQLearning):
   """
 
     def getFeatures(self, game_state, action):
-        features = util.Counter()
+        # extract the grid of food and wall locations and get the ghost locations
         successor = self.get_successor(game_state, action)
-        food_list = self.get_food(successor).as_list()
-        features['successor_score'] = -len(food_list)  # self.getScore(successor)
+        food_list = self.get_food(game_state).as_list()
+        enemies = [game_state.get_agent_state(i) for i in self.get_opponents(game_state)]
+        ghosts = [a.get_position() for a in enemies if not a.is_pacman and a.get_position() != None]
+        walls = game_state.get_walls()
+        my_pos = successor.get_agent_state(self.index).get_position()
+
+        features = util.Counter()
+
+        features["bias"] = 1.0
+        
+        features["#-of-ghosts-1-step-away"] = sum((my_pos) in Actions.get_legal_neighbors(g, walls) for g in ghosts)
 
         # Compute distance to the nearest food
 
         if len(food_list) > 0:  # This should always be True,  but better safe than sorry
-            my_pos = successor.get_agent_state(self.index).get_position()
-            min_distance = min([self.get_maze_distance(my_pos, food) for food in food_list])
-            features['distance_to_food'] = min_distance
+            distToFood = self.closest_food(my_pos, food_list , walls)
+            features['distance_to_food'] = float(distToFood) / (walls.width * walls.height)
+            
+        if len(ghosts) > 0:  # This should always be True,  but better safe than sorry
+            distToGhost = self.closest_ghost(my_pos, ghosts , walls)
+            features['distance_to_ghost'] = float(distToGhost) / (walls.width * walls.height)
+            
+        if not features["#-of-ghosts-1-step-away"] and my_pos in food_list:
+            features["eats-food"] = 1.0
+            
         return features
 
     def get_weights(self, game_state, action):
-        return {'successor_score': 100, 'distance_to_food': -1}
+        return {'distance_to_food': -3,
+                'distance_to_ghost': 2,
+                    'bias': -9.2,
+                    '#-of-ghosts-1-step-away': -16.6,
+                    'eats-food': 11}
     
-    def getReward(self, state, nextState):
-
+    def getReward(self, game_state, nextState):
+        
         reward = 0
-        agentPosition = state.getAgentPosition(self.index)
-        NextAgentPosition = nextState.getAgentPosition(self.index)
+        agentPosition = game_state.get_agent_position(self.index)
+        NextAgentPosition = nextState.get_agent_position(self.index)
+        walls = game_state.get_walls()
 
         # check if I have updated the score
-        if self.getScore(nextState) > self.getScore(state):
-            diff = self.getScore(nextState) - self.getScore(state)
+        if self.get_score(nextState) > self.get_score(game_state):
+            diff = self.get_score(nextState) - self.get_score(game_state)
             reward = diff * 10
 
         # check if food eaten in nextState
-        myFoods = self.get_food(state).asList()
-        distToFood = min([self.getMazeDistance(agentPosition, food) for food in myFoods])
-        NewDistToFood = min([self.getMazeDistance(NextAgentPosition, food) for food in myFoods])
+        food_list = self.get_food(nextState).as_list()
+        distToFood = self.closest_food(agentPosition, food_list, walls)
+        NewDistToFood = self.closest_food(NextAgentPosition, food_list, walls)
+        print(distToFood)
+        print(NewDistToFood)
+        #distToFood = min([self.get_maze_distance(agentPosition, food) for food in myFoods])
+        #NewDistToFood = min([self.get_maze_distance(NextAgentPosition, food) for food in myFoods])
         
-        if NextAgentPosition in myFoods: #Will I ate food
+        #if not self.red:
+        if NextAgentPosition in food_list: #Will I ate food
             reward = reward + 8
         
-        if distToFood < NewDistToFood: #I'm closer to the food
+        if NewDistToFood < distToFood: #I'm closer to the food
             reward = reward + 4
 
 
         # check if I am eaten
-        enemies = [state.getAgentState(i) for i in self.getOpponents(state) if not state.getAgentState(i).isPacman]
-        ghosts = [ghost for ghost in enemies if ghost.getPosition() is not None]
+        enemies = [game_state.get_agent_state(i) for i in self.get_opponents(game_state) if not game_state.get_agent_state(i).is_pacman]
+        ghosts = [ghost for ghost in enemies if ghost.get_position() is not None]
         if ghosts:
-            minDistGhost = min(self.getMazeDistance(agentPosition, ghost.getPosition()) for ghost in ghosts) #Get distance between agent and closest_ghost
-            if minDistGhost == 1 and nextState.getAgentState(self.index).getPosition() == self.start: # Checks if I die doeing this move
-                reward = -1000
+            minDistGhost = min(self.get_maze_distance(agentPosition, ghost.get_position()) for ghost in ghosts) #Get distance between agent and closest_ghost
+            if minDistGhost == 1 and nextState.get_agent_state(self.index).get_position() == self.start: # Checks if I die doeing this move
+                reward = -100
 
-
+        print(NextAgentPosition)
+        print(reward)
         return reward
 
 
@@ -416,6 +507,7 @@ class DefensiveReflexAgent(OffensiveQLearning):
     def getFeatures(self, game_state, action):
         features = util.Counter()
         successor = self.get_successor(game_state, action)
+        walls = game_state.get_walls()
 
         my_state = successor.get_agent_state(self.index)
         my_pos = my_state.get_position()
@@ -435,16 +527,22 @@ class DefensiveReflexAgent(OffensiveQLearning):
         if action == Directions.STOP: features['stop'] = 1
         rev = Directions.REVERSE[game_state.get_agent_state(self.index).configuration.direction]
         if action == rev: features['reverse'] = 1
+        
+        enemies = [game_state.get_agent_state(i) for i in self.get_opponents(game_state)]
+        pacman = [a.get_position() for a in enemies if a.is_pacman and a.get_position() != None]
+        
+        if len(pacman) > 0:  # This should always be True,  but better safe than sorry
+            distToGhost = self.closest_ghost(my_pos, pacman , walls)
+            features['distance_to_pacman'] = float(distToGhost) / (walls.width * walls.height)
 
         return features
 
     def get_weights(self, game_state, action):
-        return {'num_invaders': -1000, 'on_defense': 100, 'invader_distance': -10, 'stop': -100, 'reverse': -2}
+        return {'num_invaders': -1000, 'on_defense': 100, 'invader_distance': -10, 'stop': -100, 'reverse': -2, 'distance_to_pacman': -5}
     
     def getReward(self, state, nextState):
         return  0
     
-
 
 
     """
